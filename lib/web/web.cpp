@@ -91,18 +91,15 @@ void handleCarControl() {
 void web_init() {
     // 初始化 WiFi 连接
     WiFi.begin("OP11", "88888888");
+    Terminal_WriteLine("AP:OP11");
+    Terminal_WriteLine("PAS:88888888");
     while (WiFi.status() != WL_CONNECTED) {
         delay(1000);
         Serial.println("Connecting to WiFi...");
     }
+
     Serial.println("Connected to WiFi");
-
-    // 新增：输出设备的 IP 地址到串口
-    Serial.print("IP Address: ");
-    Serial.println(WiFi.localIP());
-
-    Terminal_WriteLine(WiFi.localIP().toString().c_str());
-
+    Terminal_WriteLine("Connected to WiFi");
     // 设置路由
     server.on("/", handleRoot);
     server.on("/car", handleCarControl); // 新增：注册小车控制路由
@@ -111,6 +108,12 @@ void web_init() {
     server.begin();
     Serial.println("HTTP server started");
     Terminal_WriteLine("Web server started");
+        // 新增：输出设备的 IP 地址到串口
+    Serial.print("IP Address: ");
+    Serial.println(WiFi.localIP());
+
+    Terminal_WriteLine(WiFi.localIP().toString().c_str());
+    
 }
 
 void web_handleClient() {

@@ -2,6 +2,8 @@
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <U8g2lib.h>
+#include <WiFi.h>
+
 
 void OLED_Init(void);
 
@@ -17,15 +19,25 @@ const char* loading_frames[] = {"|", "/", "-", "\\"};
 const int FRAME_COUNT = 4;
 static int current_frame = 0;
 
+
+
 void Terminal_Init(void);  // 初始化终端
 void Terminal_Update(void);  // 更新显示
 void Terminal_WriteLine(const char* line);  // 写入新行
 void Show_Connecting(bool* connected);  // 显示连接状态
 
-//硬件iic
-// 修改构造函数，将复位引脚设为-1（表示不使用）
-U8G2_SSD1306_128X64_NONAME_2_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/4, /* data=*/16,
-    /* cs=*/18, /* dc=*/5, /* reset=*/17);
+
+/*****************************************************OLED引脚配置*****************************************************/
+
+//硬件I2C，SCL=22, SDA=21
+U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+//软件IIC
+//U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0,/* clock=*/ 22,/* data=*/  21,/* reset=*/ U8X8_PIN_NONE);
+//软件SPI
+//U8G2_SSD1306_128X64_NONAME_2_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/4, /* data=*/19,/* cs=*/18, /* dc=*/5, /* reset=*/19);
+
+/*****************************************************OLED引脚配置*****************************************************/
+
 
 static const unsigned char LOGO_MINICAR[] U8X8_PROGMEM = 
 {
@@ -176,5 +188,20 @@ void Show_Logo(void)  // 显示Logo
     OLED_Init();
     u8g2.drawXBMP(0, 0, 128, 64, LOGO_MINICAR);
     delay(2000);
+}
+
+int8_t Check_WiFi_Status(void) {
+    static uint8_t prevStatus = WL_CONNECTED;  // 静态变量保存上一状态
+    uint8_t currentStatus = WiFi.status();     // 获取当前状态
+    
+    // 仅当状态从连接变为断开时触发
+    if (prevStatus == WL_CONNECTED && currentStatus != WL_CONNECTED) {
+        Terminal_WriteLine("WiFi Lost");
+    }
+    
+    // 更新状态记录
+    prevStatus = currentStatus;
+    
+    return 1;
 }
 

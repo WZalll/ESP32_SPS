@@ -1,57 +1,62 @@
 #include <Arduino.h>
-#include "L298N.h"
-#include "web.h"
-#include "oled.h" 
-#include "vl53l1x_sensor.h"
+#include <Wire.h>
+#include <Adafruit_VL53L1X.h>
+#include "vl53l1x_sensor_multi.h"
 
-L298N motor;
+#define VL53L1X_I2C_ADDR 0x29
+
+// I2C总线1（X轴）
+#define I2C1_SDA 14
+#define I2C1_SCL 13
+// I2C总线2（Y轴）
+#define I2C2_SDA 26
+#define I2C2_SCL 27
+
+// 直接使用系统自带的Wire和Wire1
+Adafruit_VL53L1X lox1;
+Adafruit_VL53L1X lox2;
 
 void setup() {
-    Show_Logo();
     Serial.begin(115200);
-    OLED_Init();
-    OLED_Clear();
-    Terminal_Init();
-    Terminal_WriteLine("Initializing system...");
-    Serial.println("Initializing system...");
-
-    // 初始化电机引脚
-    L298N_init(&motor, 13, 12, 14, 27, 26, 25); 
-    Terminal_WriteLine("Motor initialized.");
-
-    // 检查电机是否初始化成功（简单验证）
-    if (motor.in1 == 13 && motor.in2 == 12 && motor.in3 == 14 && motor.in4 == 27) {
-        Serial.println("Motor initialized successfully.");
-    } else {
-        Serial.println("Error: Motor initialization failed.");
+    delay(1000);
+    // 初始化I2C
+    Wire.begin(I2C1_SDA, I2C1_SCL);
+    Wire1.begin(I2C2_SDA, I2C2_SCL);
+    Serial.println("VL53L1X X轴初始化...");
+    if (!vl53l1x_init_multi(&lox1, VL53L1X_I2C_ADDR, &Wire)) {
+        Serial.println("X轴VL53L1X初始化失败！");
+        while (1) delay(1000);
     }
-
-    
-    // 初始化网页控制
-    web_init(); 
-    Terminal_WriteLine("Web server initialized.");
-    
-    //initializeVL53L1X(); // 初始化VL53L1X传感器
+    Serial.println("VL53L1X Y轴初始化...");
+    if (!vl53l1x_init_multi(&lox2, VL53L1X_I2C_ADDR, &Wire1)) {
+        Serial.println("Y轴VL53L1X初始化失败！");
+        while (1) delay(1000);
+    }
+    vl53l1x_set_timing_budget_multi(&lox1, 50);
+    vl53l1x_set_timing_budget_multi(&lox2, 50);
+    vl53l1x_start_ranging_multi(&lox1);
+    vl53l1x_start_ranging_multi(&lox2);
+    Serial.println("VL53L1X双通道初始化完成");
 }
 
 void loop() {
-    // 处理网页客户端请求
-    web_handleClient();
-    // if (vl53l1x_get_distance() < 1000)
-    // {
-    //     if (vl53l1x_get_distance() < 1000)
-    //     {
-    //     if (vl53l1x_get_distance() < 1000)
-    //     { 
-    //         stop();
-    //         moveBackward(&motor,150);
-    //         delay(1000);
-    //         stop();
-    //         Serial.println("Obstacle detected!");
-    //         Terminal_WriteLine("Obstacle detected! Car stopped.");
-    //     }
-    //     }
-    // }
-    // handleDistanceMeasurement(); // 处理距离测量
-    // Serial.println(vl53l1x_get_distance());
+    int16_t distance_x = -1;
+    int16_t distance_y = -1;
+    if (vl53l1x_is_data_ready_multi(&lox1)) {
+        distance_x = vl53l1x_get_distance_multi(&lox1);
+        vl53l1x_clear_interrupt_multi(&lox1);
+    }
+    if (vl53l1x_is_data_ready_multi(&lox2)) {
+        distance_y = vl53l1x_get_distance_multi(&lox2);
+        vl53l1x_clear_interrupt_multi(&lox2);
+    }
+    // 只要有一个数据有效就输出
+    if (distance_x != -1 || distance_y != -1) {
+        Serial.print("distance[");
+        Serial.print(distance_x);
+        Serial.print(",");
+        Serial.print(distance_y);
+        Serial.println("]");
+    }
+    delay(100);
 }
