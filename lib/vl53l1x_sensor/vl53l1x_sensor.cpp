@@ -2,15 +2,20 @@
 #include <Wire.h>
 #include <Adafruit_VL53L1X.h>
 
-// 静态变量：传感器对象
-static Adafruit_VL53L1X lox = Adafruit_VL53L1X(XSHUT_PIN, IRQ_PIN);
+// 静态变量：传感器对象 - 不使用硬件引脚
+static Adafruit_VL53L1X lox;
 
 // 初始化传感器
 bool vl53l1x_init(uint8_t i2c_address) {
-    Wire.begin(); // 初始化I2C总线
+    // Wire.begin()应该在main.cpp中调用，这里不重复初始化
+    Serial.print("正在初始化VL53L1X传感器，I2C地址: 0x");
+    Serial.println(i2c_address, HEX);
+    
     if (!lox.begin(i2c_address, &Wire)) {
+        Serial.println("VL53L1X传感器初始化失败！");
         return false; // 初始化失败
     }
+    Serial.println("VL53L1X传感器初始化成功！");
     return true;
 }
 

@@ -4,9 +4,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-// 定义传感器引脚
-#define IRQ_PIN   2  // 中断信号引脚（非必需）
-#define XSHUT_PIN 3  // 多传感器控制引脚（非必需）
+// 定义传感器引脚 - 设置为-1表示不使用这些引脚
+#define IRQ_PIN   -1  // 中断信号引脚（不使用）
+#define XSHUT_PIN -1  // 多传感器控制引脚（不使用，通过TCA9548A实现多传感器）
 
 #ifdef __cplusplus
 extern "C" {

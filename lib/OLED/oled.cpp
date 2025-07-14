@@ -9,7 +9,7 @@ void OLED_Init(void);
 
 void OLED_Clear(void);
 
-#define MAX_LINES 6  // 最大显示行数
+#define MAX_LINES 3  // 最大显示行数
 #define LINE_LENGTH 21  // 每行最大字符数
 
 extern char terminal_buffer[MAX_LINES][LINE_LENGTH];  // 终端显示缓冲
@@ -30,9 +30,9 @@ void Show_Connecting(bool* connected);  // 显示连接状态
 /*****************************************************OLED引脚配置*****************************************************/
 
 //硬件I2C，SCL=22, SDA=21
-U8G2_SSD1306_128X64_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
+U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0, /* reset=*/ U8X8_PIN_NONE);
 //软件IIC
-//U8G2_SSD1306_128X64_NONAME_F_SW_I2C u8g2(U8G2_R0,/* clock=*/ 22,/* data=*/  21,/* reset=*/ U8X8_PIN_NONE);
+//U8G2_SSD1306_128X32_NONAME_F_SW_I2C u8g2(U8G2_R0,/* clock=*/ 22,/* data=*/  21,/* reset=*/ U8X8_PIN_NONE);
 //软件SPI
 //U8G2_SSD1306_128X64_NONAME_2_4W_SW_SPI u8g2(U8G2_R0, /* clock=*/4, /* data=*/19,/* cs=*/18, /* dc=*/5, /* reset=*/19);
 

@@ -7,6 +7,7 @@
 #include <Wire.h>
 #include <WiFi.h>
 
+extern U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2;
 extern bool isWebInitialized;
 
 void OLED_Init(void);

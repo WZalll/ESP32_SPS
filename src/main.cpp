@@ -1,62 +1,81 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_VL53L1X.h>
-#include "vl53l1x_sensor_multi.h"
+#include <VL53L1X.h>
+#include "i2c_multiplexer.h"
 
-#define VL53L1X_I2C_ADDR 0x29
+// 为每个传感器创建一个对象
+VL53L1X sensor1;
+VL53L1X sensor2;
 
-// I2C总线1（X轴）
-#define I2C1_SDA 14
-#define I2C1_SCL 13
-// I2C总线2（Y轴）
-#define I2C2_SDA 26
-#define I2C2_SCL 27
-
-// 直接使用系统自带的Wire和Wire1
-Adafruit_VL53L1X lox1;
-Adafruit_VL53L1X lox2;
+// 封装调试信息输出函数
+void debugPrint(const String &message) {
+    // 注释掉以下行以禁用调试信息输出
+    // Serial.print("[debug] ");
+    // Serial.println(message);
+}
 
 void setup() {
     Serial.begin(115200);
+    Wire.begin(21, 22); // 使用您定义的SDA和SCL引脚
     delay(1000);
-    // 初始化I2C
-    Wire.begin(I2C1_SDA, I2C1_SCL);
-    Wire1.begin(I2C2_SDA, I2C2_SCL);
-    Serial.println("VL53L1X X轴初始化...");
-    if (!vl53l1x_init_multi(&lox1, VL53L1X_I2C_ADDR, &Wire)) {
-        Serial.println("X轴VL53L1X初始化失败！");
-        while (1) delay(1000);
+
+    debugPrint("双VL53L1X传感器测试（使用Pololu库）");
+
+    // --- 初始化传感器1 (通道0) ---
+    tca9548a_select(0);
+    sensor1.setBus(&Wire); // 将Wire对象传递给传感器
+    if (!sensor1.init()) {
+        debugPrint("❌ 传感器1初始化失败！");
+        while (1);
     }
-    Serial.println("VL53L1X Y轴初始化...");
-    if (!vl53l1x_init_multi(&lox2, VL53L1X_I2C_ADDR, &Wire1)) {
-        Serial.println("Y轴VL53L1X初始化失败！");
-        while (1) delay(1000);
+    debugPrint("✓ 传感器1初始化成功");
+    // 配置传感器1
+    sensor1.setDistanceMode(VL53L1X::Long);      // 设置为长距离模式（最远4米）
+    sensor1.setMeasurementTimingBudget(50000);   // 设置测量时间预算为50ms (对应20Hz)
+    sensor1.startContinuous(50);                 // 开始连续测量，每50ms一次
+
+    // --- 初始化传感器2 (通道1) ---
+    tca9548a_select(1);
+    sensor2.setBus(&Wire); // 将Wire对象传递给传感器
+    if (!sensor2.init()) {
+        debugPrint("❌ 传感器2初始化失败！");
+        while (1);
     }
-    vl53l1x_set_timing_budget_multi(&lox1, 50);
-    vl53l1x_set_timing_budget_multi(&lox2, 50);
-    vl53l1x_start_ranging_multi(&lox1);
-    vl53l1x_start_ranging_multi(&lox2);
-    Serial.println("VL53L1X双通道初始化完成");
+    debugPrint("✓ 传感器2初始化成功");
+    // 配置传感器2
+    sensor2.setDistanceMode(VL53L1X::Long);
+    sensor2.setMeasurementTimingBudget(50000);
+    sensor2.startContinuous(50);
+
+    debugPrint("\n✅ 所有传感器配置完成，开始读取数据...");
 }
 
 void loop() {
-    int16_t distance_x = -1;
-    int16_t distance_y = -1;
-    if (vl53l1x_is_data_ready_multi(&lox1)) {
-        distance_x = vl53l1x_get_distance_multi(&lox1);
-        vl53l1x_clear_interrupt_multi(&lox1);
+    // 从传感器1读取数据
+    tca9548a_select(0);
+    int16_t distance1 = sensor1.read();
+
+    // 从传感器2读取数据
+    tca9548a_select(1);
+    int16_t distance2 = sensor2.read();
+
+    // 输出为 distance[x,y] 格式
+    Serial.print("distance[");
+    if (sensor1.timeoutOccurred()) {
+        Serial.print("timeout");
+    } else {
+        Serial.print(distance1);
     }
-    if (vl53l1x_is_data_ready_multi(&lox2)) {
-        distance_y = vl53l1x_get_distance_multi(&lox2);
-        vl53l1x_clear_interrupt_multi(&lox2);
+
+    Serial.print(",");
+
+    if (sensor2.timeoutOccurred()) {
+        Serial.print("timeout");
+    } else {
+        Serial.print(distance2);
     }
-    // 只要有一个数据有效就输出
-    if (distance_x != -1 || distance_y != -1) {
-        Serial.print("distance[");
-        Serial.print(distance_x);
-        Serial.print(",");
-        Serial.print(distance_y);
-        Serial.println("]");
-    }
-    delay(100);
+    Serial.println("]");
+
+    // 稍微延时以避免串口输出过快
+    delay(50);
 }
