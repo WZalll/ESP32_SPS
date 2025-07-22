@@ -3,11 +3,13 @@
 #include <VL53L1X.h>
 #include "i2c_multiplexer.h"
 #include "MPU6050_6Axis_MotionApps20.h"
+#include "StateMachine.h"
 
 // 为每个传感器创建一个对象
 VL53L1X sensor1;
 VL53L1X sensor2;
-VL53L1X sensor3; // 新增传感器3
+VL53L1X sensor3;
+VL53L1X sensor4; // 新增传感器4
 
 MPU6050 mpu(0x68, &Wire1); // 使用 Wire1 对象初始化 MPU6050
 int const INTERRUPT_PIN = 2;  // 定义中断引脚
@@ -18,6 +20,8 @@ uint8_t FIFOBuffer[64];
 Quaternion q;
 VectorFloat gravity;
 float ypr[3];
+
+StateMachine stateMachine;
 
 volatile bool MPUInterrupt = false;
 void DMPDataReady() {
@@ -31,12 +35,16 @@ void debugPrint(const String &message) {
     // Serial.println(message);
 }
 
+// 变量命名与物理排布一致
+// 0:x+  1:x-  2:y+  3:y-
+int16_t distance_xp, distance_xn, distance_yp, distance_yn;
+
 void setup() {
     Serial.begin(115200);
-    Wire.begin(21, 22); // 使用您定义的SDA和SCL引脚
+    Wire.begin(21, 22); // 使用定义的SDA和SCL引脚
     delay(1000);
 
-    debugPrint("三VL53L1X传感器测试（使用Pololu库）");
+    debugPrint("四VL53L1X传感器测试（使用Pololu库）");
 
     // --- 初始化传感器1 (通道0) ---
     tca9548a_select(0);
@@ -77,6 +85,19 @@ void setup() {
     sensor3.setMeasurementTimingBudget(50000);
     sensor3.startContinuous(50);
 
+    // --- 初始化传感器4 (通道3) ---
+    tca9548a_select(3);
+    sensor4.setBus(&Wire); // 将Wire对象传递给传感器
+    if (!sensor4.init()) {
+        debugPrint("❌ 传感器4初始化失败！");
+        while (1);
+    }
+    debugPrint("✓ 传感器4初始化成功");
+    // 配置传感器4
+    sensor4.setDistanceMode(VL53L1X::Long);
+    sensor4.setMeasurementTimingBudget(50000);
+    sensor4.startContinuous(50);
+
     // MPU6050 初始化
     Wire1.begin(25, 26); // 使用 GPIO25 和 GPIO26 作为 SDA 和 SCL
     Wire1.setClock(400000);
@@ -109,58 +130,72 @@ void setup() {
         Serial.println(devStatus);
     }
 
+    initStateMachine(&stateMachine);
+
     debugPrint("\n✅ 所有传感器配置完成，开始读取数据...");
 }
 
 void loop() {
-    // 从传感器1读取数据
-    tca9548a_select(0);
-    int16_t distance1 = sensor1.read();
+    // 读取四个方向的距离
+    tca9548a_select(0); distance_xp = sensor1.read();
+    tca9548a_select(1); distance_xn = sensor2.read();
+    tca9548a_select(2); distance_yp = sensor3.read();
+    tca9548a_select(3); distance_yn = sensor4.read();
 
-    // 从传感器2读取数据
-    tca9548a_select(1);
-    int16_t distance2 = sensor2.read();
+    // 计算中心到x轴、y轴的距离（单位mm，取整）
+    int center_x = (distance_xp + distance_xn) / 2;
+    int center_y = (distance_yp + distance_yn) / 2;
 
-    // 从传感器3读取数据
-    tca9548a_select(2);
-    int16_t distance3 = sensor3.read();
+    /*
+    // 输出格式化数据（细节模式，已注释）
+    Serial.print("distance[x+]: ");
+    if (sensor1.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_xp);
+    Serial.print(", x-: ");
+    if (sensor2.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_xn);
+    Serial.print(", y+: ");
+    if (sensor3.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_yp);
+    Serial.print(", y-: ");
+    if (sensor4.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_yn);
+    Serial.print(" | center_x: "); Serial.print(center_x);
+    Serial.print(", center_y: "); Serial.println(center_y);
+    */
 
-    // 输出为 distance[x,y,z] 格式
+    // 只输出状态和distance[x,y]（整数，单位mm）
     Serial.print("distance[");
-    if (sensor1.timeoutOccurred()) {
+    if (sensor1.timeoutOccurred() || sensor2.timeoutOccurred()) {
         Serial.print("timeout");
     } else {
-        Serial.print(distance1);
+        Serial.print(center_x);
     }
-
     Serial.print(",");
-
-    if (sensor2.timeoutOccurred()) {
+    if (sensor3.timeoutOccurred() || sensor4.timeoutOccurred()) {
         Serial.print("timeout");
     } else {
-        Serial.print(distance2);
+        Serial.print(center_y);
     }
+    Serial.print("] ");
 
-    Serial.print(",");
-
-    if (sensor3.timeoutOccurred()) {
-        Serial.print("timeout");
+    if (sensor1.timeoutOccurred() || sensor2.timeoutOccurred() || sensor3.timeoutOccurred() || sensor4.timeoutOccurred()) {
+        setState(&stateMachine, STATE_ERROR);
     } else {
-        Serial.print(distance3);
+        setState(&stateMachine, STATE_RUNNING);
     }
-    Serial.println("]");
+    SystemState currentState = getState(&stateMachine);
+    Serial.print("State:");
+    Serial.print(currentState);
 
-    // 读取 MPU6050 的 Yaw 数据
+    // 输出Yaw角度（单位度，整数）
+    int yaw_deg = 0;
     if (DMPReady) {
         if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
             mpu.dmpGetQuaternion(&q, FIFOBuffer);
             mpu.dmpGetGravity(&gravity, &q);
             mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-
-            Serial.print("Yaw: ");
-            Serial.println(ypr[0] * 180 / M_PI);
+            yaw_deg = (int)(ypr[0] * 180.0 / M_PI);
         }
     }
+    Serial.print(" Yaw:");
+    Serial.println(yaw_deg);
 
     // 稍微延时以避免串口输出过快
     delay(50);

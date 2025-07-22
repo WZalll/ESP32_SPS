@@ -1,30 +1,28 @@
 #ifndef STATE_MACHINE_H
 #define STATE_MACHINE_H
 
-#include <Arduino.h>
+#include <stdint.h>
 
-// 定义状态枚举类型
-enum State {
-    IDLE,
-    RUNNING,
-    ERROR
-};
+// 定义系统状态枚举
+typedef enum {
+    STATE_IDLE,
+    STATE_RUNNING,
+    STATE_ERROR,
+    STATE_HARDWARE_ERROR
+} SystemState;
 
-class StateMachine {
-private:
-    State currentState;
+// 状态机结构体
+typedef struct {
+    SystemState currentState;
+} StateMachine;
 
-public:
-    StateMachine();
+// 初始化状态机
+void initStateMachine(StateMachine *sm);
 
-    // 获取当前状态
-    State getState();
+// 设置状态
+void setState(StateMachine *sm, SystemState state);
 
-    // 设置状态
-    void setState(State state);
-
-    // 状态处理函数
-    void handleState();
-};
+// 获取当前状态
+SystemState getState(const StateMachine *sm);
 
 #endif // STATE_MACHINE_H
