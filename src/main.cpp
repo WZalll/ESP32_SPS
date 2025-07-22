@@ -4,6 +4,7 @@
 #include "i2c_multiplexer.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "StateMachine.h"
+#include "../lib/hardware/SensorFusion.h" // 修正SensorFusion库路径
 
 // 为每个传感器创建一个对象
 VL53L1X sensor1;
@@ -146,32 +147,33 @@ void loop() {
     int center_x = (distance_xp + distance_xn) / 2;
     int center_y = (distance_yp + distance_yn) / 2;
 
-    /*
-    // 输出格式化数据（细节模式，已注释）
-    Serial.print("distance[x+]: ");
-    if (sensor1.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_xp);
-    Serial.print(", x-: ");
-    if (sensor2.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_xn);
-    Serial.print(", y+: ");
-    if (sensor3.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_yp);
-    Serial.print(", y-: ");
-    if (sensor4.timeoutOccurred()) Serial.print("timeout"); else Serial.print(distance_yn);
-    Serial.print(" | center_x: "); Serial.print(center_x);
-    Serial.print(", center_y: "); Serial.println(center_y);
-    */
+    // 输出Yaw角度（单位度，整数）
+    int yaw_deg = 0;
+    if (DMPReady) {
+        if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
+            mpu.dmpGetQuaternion(&q, FIFOBuffer);
+            mpu.dmpGetGravity(&gravity, &q);
+            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
+            yaw_deg = (int)(ypr[0] * 180.0 / M_PI);
+        }
+    }
 
-    // 只输出状态和distance[x,y]（整数，单位mm）
+    // 传感器融合重映射
+    float remap_x = center_x, remap_y = center_y;
+    SensorFusion::remap(center_x, center_y, yaw_deg, remap_x, remap_y);
+
+    // 只输出状态和重映射后的distance[x,y]（整数，单位mm）
     Serial.print("distance[");
     if (sensor1.timeoutOccurred() || sensor2.timeoutOccurred()) {
         Serial.print("timeout");
     } else {
-        Serial.print(center_x);
+        Serial.print((int)remap_x);
     }
     Serial.print(",");
     if (sensor3.timeoutOccurred() || sensor4.timeoutOccurred()) {
         Serial.print("timeout");
     } else {
-        Serial.print(center_y);
+        Serial.print((int)remap_y);
     }
     Serial.print("] ");
 
@@ -183,17 +185,6 @@ void loop() {
     SystemState currentState = getState(&stateMachine);
     Serial.print("State:");
     Serial.print(currentState);
-
-    // 输出Yaw角度（单位度，整数）
-    int yaw_deg = 0;
-    if (DMPReady) {
-        if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
-            mpu.dmpGetQuaternion(&q, FIFOBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            yaw_deg = (int)(ypr[0] * 180.0 / M_PI);
-        }
-    }
     Serial.print(" Yaw:");
     Serial.println(yaw_deg);
 
