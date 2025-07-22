@@ -5,6 +5,7 @@
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "StateMachine.h"
 #include "../lib/hardware/SensorFusion.h" // 修正SensorFusion库路径
+#include "../lib/hardware/Check.h"        // 地雷检测库
 
 // 为每个传感器创建一个对象
 VL53L1X sensor1;
@@ -162,6 +163,10 @@ void loop() {
     float remap_x = center_x, remap_y = center_y;
     SensorFusion::remap(center_x, center_y, yaw_deg, remap_x, remap_y);
 
+    // 地雷检测
+    MineStatus mineStatus = Check::checkPosition((int)remap_x, (int)remap_y);
+    float nearestMineDistance = Check::getNearestMineDistance((int)remap_x, (int)remap_y);
+
     // 只输出状态和重映射后的distance[x,y]（整数，单位mm）
     Serial.print("distance[");
     if (sensor1.timeoutOccurred() || sensor2.timeoutOccurred()) {
@@ -186,7 +191,11 @@ void loop() {
     Serial.print("State:");
     Serial.print(currentState);
     Serial.print(" Yaw:");
-    Serial.println(yaw_deg);
+    Serial.print(yaw_deg);
+    Serial.print(" Mine:");
+    Serial.print(mineStatus);
+    Serial.print(" Dist:");
+    Serial.println((int)nearestMineDistance);
 
     // 稍微延时以避免串口输出过快
     delay(50);
