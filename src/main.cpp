@@ -6,6 +6,7 @@
 #include "StateMachine.h"
 #include "../lib/hardware/SensorFusion.h" // 修正SensorFusion库路径
 #include "../lib/hardware/Check.h"        // 地雷检测库
+#include "../lib/hardware/PathPlanner.h"        // 路径规划库
 
 // 为每个传感器创建一个对象
 VL53L1X sensor1;
@@ -166,6 +167,24 @@ void loop() {
     // 地雷检测
     MineStatus mineStatus = Check::checkPosition((int)remap_x, (int)remap_y);
     float nearestMineDistance = Check::getNearestMineDistance((int)remap_x, (int)remap_y);
+
+    // 路径规划：优先通过中线，过线后随机移动且避开地雷
+    PathPlanResult planResult;
+    if ((int)remap_x < 2000) {
+        // 未过中线时不输出target
+        Serial.print(" Target[none] Crossed:0");
+        planResult.nextTarget.x = -1;
+        planResult.nextTarget.y = -1;
+        planResult.crossedMidline = 0;
+    } else {
+        planResult = PathPlanner::plan((int)remap_x, (int)remap_y, 2000, mineStatus);
+        Serial.print(" Target[");
+        Serial.print(planResult.nextTarget.x);
+        Serial.print(",");
+        Serial.print(planResult.nextTarget.y);
+        Serial.print("] Crossed:");
+        Serial.print(planResult.crossedMidline);
+    }
 
     // 只输出状态和重映射后的distance[x,y]（整数，单位mm）
     Serial.print("distance[");
