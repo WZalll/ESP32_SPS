@@ -16,13 +16,28 @@ typedef struct {
     SystemState currentState;
 } StateMachine;
 
-// 初始化状态机
+
+/**
+ * @brief 初始化状态机，设置为IDLE状态。
+ * @param sm 状态机指针
+ * @usage initStateMachine(&stateMachine);
+ */
 void initStateMachine(StateMachine *sm);
 
-// 设置状态
+/**
+ * @brief 设置系统状态。
+ * @param sm 状态机指针
+ * @param state 新的系统状态
+ * @usage setState(&stateMachine, STATE_RUNNING);
+ */
 void setState(StateMachine *sm, SystemState state);
 
-// 获取当前状态
+/**
+ * @brief 获取当前系统状态。
+ * @param sm 状态机指针
+ * @return 当前SystemState
+ * @usage SystemState s = getState(&stateMachine);
+ */
 SystemState getState(const StateMachine *sm);
 
 #endif // STATE_MACHINE_H

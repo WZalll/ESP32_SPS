@@ -4,9 +4,13 @@
 #include "i2c_multiplexer.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #include "StateMachine.h"
-#include "../lib/hardware/SensorFusion.h" // 修正SensorFusion库路径
-#include "../lib/hardware/Check.h"        // 地雷检测库
-#include "../lib/hardware/PathPlanner.h"        // 路径规划库
+#include "SensorFusion.h" // 修正SensorFusion库路径
+#include "Check.h"        // 地雷检测库
+#include "PathPlanner.h"        // 路径规划库
+#include "CarCtrl.h"
+#include "CarCtrlTest.h"
+#include "DistanceManager.h"
+#include "IMUManager.h"
 
 // 为每个传感器创建一个对象
 VL53L1X sensor1;
@@ -43,7 +47,7 @@ void debugPrint(const String &message) {
 int16_t distance_xp, distance_xn, distance_yp, distance_yn;
 
 void setup() {
-    Serial.begin(115200);
+    Serial.begin(9600);
     Wire.begin(21, 22); // 使用定义的SDA和SCL引脚
     delay(1000);
 
@@ -136,86 +140,19 @@ void setup() {
     initStateMachine(&stateMachine);
 
     debugPrint("\n✅ 所有传感器配置完成，开始读取数据...");
+
+
+    CarCtrlTest::testAll();
 }
 
 void loop() {
-    // 读取四个方向的距离
-    tca9548a_select(0); distance_xp = sensor1.read();
-    tca9548a_select(1); distance_xn = sensor2.read();
-    tca9548a_select(2); distance_yp = sensor3.read();
-    tca9548a_select(3); distance_yn = sensor4.read();
+    // 采集距离与IMU
+    DistanceManager::updateDistances();
+    int center_x = DistanceManager::getCenterX();
+    int center_y = DistanceManager::getCenterY();
+    int yaw_deg = IMUManager::getYawDeg();
 
-    // 计算中心到x轴、y轴的距离（单位mm，取整）
-    int center_x = (distance_xp + distance_xn) / 2;
-    int center_y = (distance_yp + distance_yn) / 2;
-
-    // 输出Yaw角度（单位度，整数）
-    int yaw_deg = 0;
-    if (DMPReady) {
-        if (mpu.dmpGetCurrentFIFOPacket(FIFOBuffer)) {
-            mpu.dmpGetQuaternion(&q, FIFOBuffer);
-            mpu.dmpGetGravity(&gravity, &q);
-            mpu.dmpGetYawPitchRoll(ypr, &q, &gravity);
-            yaw_deg = (int)(ypr[0] * 180.0 / M_PI);
-        }
-    }
-
-    // 传感器融合重映射
-    float remap_x = center_x, remap_y = center_y;
-    SensorFusion::remap(center_x, center_y, yaw_deg, remap_x, remap_y);
-
-    // 地雷检测
-    MineStatus mineStatus = Check::checkPosition((int)remap_x, (int)remap_y);
-    float nearestMineDistance = Check::getNearestMineDistance((int)remap_x, (int)remap_y);
-
-    // 路径规划：优先通过中线，过线后随机移动且避开地雷
-    PathPlanResult planResult;
-    if ((int)remap_x < 2000) {
-        // 未过中线时不输出target
-        Serial.print(" Target[none] Crossed:0");
-        planResult.nextTarget.x = -1;
-        planResult.nextTarget.y = -1;
-        planResult.crossedMidline = 0;
-    } else {
-        planResult = PathPlanner::plan((int)remap_x, (int)remap_y, 2000, mineStatus);
-        Serial.print(" Target[");
-        Serial.print(planResult.nextTarget.x);
-        Serial.print(",");
-        Serial.print(planResult.nextTarget.y);
-        Serial.print("] Crossed:");
-        Serial.print(planResult.crossedMidline);
-    }
-
-    // 只输出状态和重映射后的distance[x,y]（整数，单位mm）
-    Serial.print("distance[");
-    if (sensor1.timeoutOccurred() || sensor2.timeoutOccurred()) {
-        Serial.print("timeout");
-    } else {
-        Serial.print((int)remap_x);
-    }
-    Serial.print(",");
-    if (sensor3.timeoutOccurred() || sensor4.timeoutOccurred()) {
-        Serial.print("timeout");
-    } else {
-        Serial.print((int)remap_y);
-    }
-    Serial.print("] ");
-
-    if (sensor1.timeoutOccurred() || sensor2.timeoutOccurred() || sensor3.timeoutOccurred() || sensor4.timeoutOccurred()) {
-        setState(&stateMachine, STATE_ERROR);
-    } else {
-        setState(&stateMachine, STATE_RUNNING);
-    }
-    SystemState currentState = getState(&stateMachine);
-    Serial.print("State:");
-    Serial.print(currentState);
-    Serial.print(" Yaw:");
-    Serial.print(yaw_deg);
-    Serial.print(" Mine:");
-    Serial.print(mineStatus);
-    Serial.print(" Dist:");
-    Serial.println((int)nearestMineDistance);
-
-    // 稍微延时以避免串口输出过快
-    delay(50);
+    // 只做小车控制测试集
+    CarCtrlTest::testAll();
+    delay(500);
 }

@@ -24,12 +24,22 @@ private:
     static float calculateDistance(int x1, int y1, int x2, int y2);
 
 public:
-    // 检测指定坐标是否触雷
-    // 输入：x, y坐标 (mm)
-    // 返回：MineStatus枚举值
+    /**
+     * @brief 检测指定坐标是否触雷。
+     * @param x x坐标（mm）
+     * @param y y坐标（mm）
+     * @return MineStatus 枚举值
+     * @usage MineStatus status = Check::checkPosition(x, y);
+     */
     static MineStatus checkPosition(int x, int y);
-    
-    // 获取最近地雷的距离
+
+    /**
+     * @brief 获取最近地雷的距离。
+     * @param x x坐标（mm）
+     * @param y y坐标（mm）
+     * @return 距离最近地雷的距离（mm）
+     * @usage float dist = Check::getNearestMineDistance(x, y);
+     */
     static float getNearestMineDistance(int x, int y);
 };
 
